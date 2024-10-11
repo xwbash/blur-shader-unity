@@ -1,2 +1,2 @@
-# blur-shader-unity
+# Blur Shader
 Blur Shader Unity UI Supported
