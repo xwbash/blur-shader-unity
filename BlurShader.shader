@@ -6,6 +6,7 @@ Shader "Unlit/BlurShader"
         _BlendFactor ("BlendFactor", Range(0, 1)) = 0.25 
         _BlurRadius ("BlendRadius", Range(0, 1)) = 0.25 
         _BlurStep ("BlurStep", Float) = 4 
+        [MaterialToggle] _Optimized ("Optimized", Float) = 0 
     }
     SubShader
     {
@@ -39,22 +40,10 @@ Shader "Unlit/BlurShader"
             float _BlendFactor;  
             float _BlurRadius;  
             float _BlurStep;  
+            float _Optimized;
 
-            v2f vert (appdata v)
+            fixed4 nonOptimizedBlurShader(fixed4 finalColor, float2 uv)
             {
-                v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                UNITY_TRANSFER_FOG(o,o.vertex);
-                return o;
-            }
-
-            fixed4 frag (v2f i) : SV_Target
-            {
-                float2 uv = i.uv;
-
-                fixed4 finalColor = tex2D(_MainTex, uv);
-
                 float2 offsets[8] = {
                     float2(0, 1),    
                     float2(1, 0),    
@@ -75,10 +64,57 @@ Shader "Unlit/BlurShader"
                         finalColor += tex2D(_MainTex, uv + (offsets[j] / i) * _BlurRadius);
                     }
                 }
+
+                return finalColor;
+            }
+
+            fixed4 optimizedBlurShader(fixed4 finalColor, float2 uv)
+            {
+                float2 offsets[4] = {
+                    float2(0, 1),    
+                    float2(1, 0),    
+                    float2(0, -1),   
+                    float2(-1, 0),   
+                };
+                
+                for (int j = 0; j < 4; j++)
+                {
+                    finalColor += tex2D(_MainTex, uv + offsets[j] * _BlurRadius);
+                }
+
+                return finalColor;
+            }
+
+            v2f vert (appdata v)
+            {
+                v2f o;
+                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                UNITY_TRANSFER_FOG(o,o.vertex);
+                return o;
+            }
+
+            fixed4 frag (v2f i) : SV_Target
+            {
+                float2 uv = i.uv;
+
+                fixed4 finalColor = tex2D(_MainTex, uv);
+
+                if(_Optimized)
+                {
+                    finalColor += optimizedBlurShader(finalColor, uv);
+                }
+                else
+                {
+                    finalColor += nonOptimizedBlurShader(finalColor, uv);
+                }
+                
                 
                 return finalColor * _BlendFactor;
             }
+
             ENDCG
         }
     }
 }
+
